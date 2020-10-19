@@ -1,0 +1,344 @@
+
+\documentclass[dvipdfmx, 12pt]{beamer}
+\usepackage{pgfpages}
+\usepackage{bxdpx-beamer}
+\usepackage{url}
+
+%%%% PDFのしおりの文字化け対策 %%%%
+\usepackage{atbegshi}
+\ifnum 42146=\euc"A4A2
+\AtBeginShipoutFirst{\special{pdf:tounicode EUC-UCS2}}
+\else
+\AtBeginShipoutFirst{\special{pdf:tounicode 90ms-RKSJ-UCS2}}
+\fi
+%%%%
+
+%%%% スライドの見た目 %%%%
+\usetheme{Singapore} % Theme
+\usecolortheme{default} % Color
+\usefonttheme{professionalfonts} % Font
+%%%%
+
+%%%% フォントの設定 %%%%
+\usepackage[utf8]{inputenc} % UTF-8
+\usepackage[T1]{fontenc} % 8bit font
+\usepackage{lmodern} % Latin Modern font
+\usepackage{otf} % otf (font)
+\usepackage{bm} % bold math
+\renewcommand{\kanjifamilydefault}{\gtdefault} % fontfamily: Gothic
+\renewcommand{\familydefault}{\sfdefault} % 英語フォント
+\usepackage{txfonts}
+\usepackage{xcolor} % \textcolor{color}{text}
+%%%%
+
+% %% ----- math -----
+% \usepackage{amsmath, amssymb}
+% \renewcommand{\~}{$\sim$}
+% %% ----- figure -----
+% \usepackage{xcolor}
+% \usepackage{here}
+% \usepackage[dvipdfmx, hiresbb]{graphicx}
+% %% ----- table -----
+\usepackage{booktabs}
+% \catcode63=\active \def?{\phantom{0}} % ? -> ' '
+% \usepackage{tabularx} \newcolumntype{Y}{>{\centering\arraybackslash}X}
+% \usepackage{multirow}
+% %% ----- programing -----
+\usepackage{verbatim}
+% \newcommand{\code}[1]{ \texttt{\detokenize{#1}} }
+% %% --- border ---
+% \usepackage{fancybox, ascmac}
+% %% ----- tikz -----
+\usepackage{tikz}
+\usetikzlibrary{fit, calc, positioning}
+
+\title{N日でできる! TLS 1.3自作入門}
+\subtitle{}
+\author{@tex2e}
+\institute{セキュリティ・キャンプ全国大会2019 LT大会}
+\date{}
+
+\begin{document}
+
+% ==============================================================================
+\begin{frame}
+  \frametitle{}
+  \titlepage %表紙
+\end{frame}
+
+% ==============================================================================
+\begin{frame}
+  \frametitle{今日のお話}
+  \begin{center}
+    \Huge TLS 1.3
+  \end{center}
+\end{frame}
+
+\begin{frame}
+  \frametitle{TLSとは}
+  \begin{center}
+    \large
+    通信する2人はこれまでに\alert{会ったことがなく}、\\[3mm]
+    \alert{安全ではない}通信路を使ったとしても、\\[3mm]
+    \alert{安全に}やりとりができる
+  \end{center}
+\end{frame}
+
+% ==============================================================================
+\section{予備知識} % Preliminaries
+
+\begin{frame}
+  \frametitle{安全な通信路とは...}
+
+  \begin{itemize}
+    \item 真正性
+      \begin{itemize}
+        \item 通信相手が本物であることを確認できる
+        \item (サーバ証明書による\alert{認証} ... X.509 Cert, PKI)
+      \end{itemize}
+
+    \vspace{0.5em}
+    \item 機密性
+      \begin{itemize}
+        \item 権限を持つ人だけがアクセスできる
+        \item (通信内容の\alert{暗号化} ... AES, ChaCha20)
+      \end{itemize}
+
+    \vspace{0.5em}
+    \item 完全性
+      \begin{itemize}
+        \item 改ざんされない
+        \item (認証付き暗号による\alert{改ざん検知} ... AEAD)
+      \end{itemize}
+  \end{itemize}
+\end{frame}
+
+\begin{frame}
+  \frametitle{TLSのハンドシェイク}
+
+  \begin{columns}
+    \begin{column}{.7\textwidth}
+      \begin{itemize}
+        \item Handshake
+        \begin{itemize}
+          \item どの暗号スイートを使うか決める
+          \item \alert{公開鍵暗号}を用いて鍵共有する
+          \item 証明書を使って認証する
+        \end{itemize}
+        \vspace{0.5cm}
+        \item Application Data
+        \begin{itemize}
+          \item \alert{共通鍵暗号}を用いて暗号化する
+          \item HTTPを暗号化したデータなど
+        \end{itemize}
+      \end{itemize}
+    \end{column}
+    \begin{column}{.3\textwidth}
+      \begin{figure}
+        \footnotesize
+        \centering
+        \input{img/tls-handshake}
+      \end{figure}
+    \end{column}
+  \end{columns}
+\end{frame}
+
+\begin{frame}
+  \frametitle{TLS 1.3のやりとり}
+
+  \begin{figure}
+    \centering
+    \input{img/tls-flow}
+  \end{figure}
+\end{frame}
+
+% ==============================================================================
+\section{実装} % Implementation
+\begin{frame}
+  \frametitle{プログラマの3大「嗜み」}
+
+  \begin{itemize}
+    \item 自作OS
+    \vspace{5mm}
+    \item 自作コンパイラ (プログラミング言語)
+    \vspace{5mm}
+    \item 自作プロトコルスタック (TCP/IP, TLS)
+  \end{itemize}
+  \vspace{5mm}
+
+  \begin{center}
+    \alert{※諸説あり}
+  \end{center}
+\end{frame}
+
+\begin{frame}
+  \frametitle{TLSどうやって作るの?}
+  \begin{center}
+    \Huge
+    RFCを読む
+  \end{center}
+\end{frame}
+
+\begin{frame}
+  \frametitle{TLS 1.3 (RFC 8446)}
+  \begin{figure}
+    \centering
+    \includegraphics[scale=0.25]{img/rfc8446}
+  \end{figure}
+\end{frame}
+
+\begin{frame}[fragile]
+  \frametitle{構造体とバイト列の相互変換}
+
+  \footnotesize
+  \begin{figure}
+    \centering
+    \begin{tikzpicture}[> = latex, auto]
+      \node (fig) {\includegraphics[scale=0.35]{img/tls13-wireshark.png}};
+      \draw[thick,->] (fig.10)  to[bend left] node {変換} (fig.340);
+      \draw[thick,->] (fig.200) to[bend left] node {復元} (fig.170);
+    \end{tikzpicture}
+  \end{figure}
+\end{frame}
+
+\begin{frame}
+  \frametitle{実装の流れ}
+
+  TLSのやりとりの実装：
+
+  \begin{enumerate}
+    \item ソケット通信
+    \item メッセージの構造体とバイト列の相互変換
+  \end{enumerate}
+  \vspace{5mm}
+
+  TLSのやりとりの中身の実装：
+
+  \begin{enumerate}
+    \item 楕円曲線Diffie-Hellman鍵共有
+    \item HKDFによる鍵スケジューリング
+    \item 認証付き暗号(AEAD)
+    \item X.509証明書
+  \end{enumerate}
+\end{frame}
+
+% ==============================================================================
+\section{最新動向}
+\begin{frame}
+  \frametitle{TLS 1.3の最新動向 (Server/Client)}
+
+  \begin{figure}
+    \centering
+    \includegraphics[scale=0.18]{img/ssl-pulse.png}
+  \end{figure}
+
+  \begin{figure}
+    \centering
+    \includegraphics[scale=1.15]{img/can-i-use-tls13.png}
+  \end{figure}
+\end{frame}
+
+\begin{frame}
+  \frametitle{TLS 1.3の最新動向 (QUIC)}
+
+  \begin{center}
+    UDPでコネクション確立とTLS 1.3確立を同時に行う
+  \end{center}
+
+  \begin{columns}
+    \begin{column}{.5\textwidth}
+      \begin{figure}
+        \centering
+        \scalebox{.9}{\input{img/http-over-tcp-tls.tex}}
+      \end{figure}
+    \end{column}
+    \begin{column}{.5\textwidth}
+      \begin{figure}
+        \centering
+        \scalebox{.9}{\input{img/http-over-quic.tex}}
+      \end{figure}
+    \end{column}
+  \end{columns}
+\end{frame}
+
+% ==============================================================================
+\section{まとめ} % Conclusion
+\begin{frame}
+  \frametitle{TLS 1.3自作は楽しいけど難しい}
+  \begin{itemize}
+    \item 文書はほとんど\alert{英語}
+    \item 暗号技術の基盤となる\alert{数学}の知識
+    \item \alert{ネットワーク}技術の知識
+    \item \alert{RFC}は入門書ではないので初学者には厳しい
+  \end{itemize}
+\end{frame}
+
+\begin{frame}
+  \begin{center}
+    \Huge
+    30日で TLS 1.3 は\\作れないよ
+  \end{center}
+\end{frame}
+
+\begin{frame}
+  \begin{center}
+    \Huge
+    おわり
+  \end{center}
+\end{frame}
+
+% ==============================================================================
+\appendix
+\begin{frame}[allowframebreaks]
+  \frametitle{参考文献}
+
+  \begin{thebibliography}{9}
+    \bibitem{tls13} RFC 8446: The Transport Layer Security (TLS) Protocol Version 1.3. IETF, August 2018.
+    \bibitem{owasp} Andy Brodie: Overview of TLS v1.3. OWASP, 2017. URL \url{https://www.owasp.org/images/d/d3/TLS_v1.3_Overview_OWASP_Final.pdf}
+    \bibitem{ssllabs} SSL Labs: SSL Pulse. Qualys, Inc, June 2019. URL \url{https://www.ssllabs.com/ssl-pulse/}
+    \bibitem{caniuse} @Fyrd, @Lensco: Can I use... URL \url{https://caniuse.com/}
+    \bibitem{quic} IETF Draft: ``QUIC: A UDP-Based Multiplexed and Secure Transport''. URL \url{https://tools.ietf.org/html/draft-ietf-quic-transport-22}
+    \bibitem{cloudflare} Alessandro Ghedini: The Road to QUIC. Cloudflare, Inc, 2018. URL \url{https://blog.cloudflare.com/the-road-to-quic/}
+    \bibitem{pandax381} 雅也 山本: TCP/IPプロトコルスタック自作入門. KLab Inc, 2018. URL \url{https://www.slideshare.net/pandax381/tcpip-105857327}
+    \bibitem{lambdanote} Ivan Ristić 著, 齋藤孝道 監訳: プロフェッショナルSSL/TLS. ラムダノート, 2018.
+  \end{thebibliography}
+
+\end{frame}
+
+% % this frame won't be included in the handout mode
+% \begin{frame}<handout:0>
+% I am a lolcat!
+% \end{frame}
+
+% % columns
+% \begin{columns}
+%   \begin{column}{.4\textwidth}
+%     ...
+%   \end{column}
+%   \begin{column}{.6\textwidth}
+%     ...
+%   \end{column}
+% \end{columns}
+%
+% % block, alertblock, exampleblock
+% \begin{block}{見出し}
+%   ...
+% \end{block}
+%
+% % Overlay Specification
+% \pause
+% \begin{enumerate}
+%   \item<1-> 1コマ目以降表示
+%   \item<1-2> 1-2コマ目のみ表示
+%   \item<2-3> 2-3コマ目のみ表示
+% \end{enumerate}
+% \uncover<1,3>{1コマ目と3コマ目のみ表示、スペースを占有する。}
+% \only<2>{2コマ目のみ表示、スペースを占有しない。}
+% \only<2|handout:0>{2コマ目のみ表示、handoutモードで非表示。}
+%
+% % Text animations (revealing one item per click)
+% \begin{itemize}[<+->]
+%   \item ...
+% \end{itemize}
+
+\end{document}
