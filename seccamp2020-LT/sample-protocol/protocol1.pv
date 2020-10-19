@@ -1,0 +1,28 @@
+
+(* 共通鍵暗号 *)
+type key.
+fun enc(bitstring, key): bitstring.
+reduc forall m: bitstring, k: key; dec(enc(m, k), k) = m.
+
+(* プロトコルのモデル化 *)
+free c: channel.
+free msg: bitstring [private].
+free password: key [private].
+
+(* 秘匿性の検証 *)
+query attacker(msg).
+query attacker(password).
+
+(* クライアント *)
+let clientA() =
+  out(c, enc(msg, password));
+  0.
+
+(* サーバ *)
+let serverB() =
+  in(c, x: bitstring);
+  let recvmsg = dec(x, password) in
+  0.
+
+process
+  ( (!clientA()) | (!serverB()) )

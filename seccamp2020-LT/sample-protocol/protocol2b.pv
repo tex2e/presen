@@ -1,0 +1,49 @@
+
+(* 共通鍵暗号 *)
+type key.
+fun enc(bitstring, key): bitstring.
+reduc forall m: bitstring, k: key; dec(enc(m, k), k) = m.
+
+(* Diffie-Hellman鍵共有 *)
+type G.
+type exponent.
+const g: G [data].       (* 生成元g *)
+fun exp(G, exponent): G. (* 離散冪乗 *)
+equation forall a: exponent, b: exponent; exp(exp(g,a),b) = exp(exp(g,b),a).
+
+fun genG(key): G [typeConverter].
+fun KDF(G): key.
+
+(* プロトコルのモデル化 *)
+free c: channel.
+free msg: bitstring [private].
+free password: key [private].
+query attacker(msg).
+query attacker(password).
+
+let clientA() =
+  new randomA: exponent;
+  let gA = exp(genG(password), randomA) in
+  out(c, gA);
+  in(c, gB: G);
+  let gBA = exp(gB, randomA) in
+  let sharedSecret = KDF(gBA) in
+  (* 導出した共有鍵で暗号化 *)
+  let ciphertext = enc(msg, sharedSecret) in
+  out(c, ciphertext);
+  0.
+
+let serverB() =
+  new randomB: exponent;
+  let gB = exp(genG(password), randomB) in
+  in(c, gA: G);
+  out(c, gB);
+  let gAB = exp(gA, randomB) in
+  let sharedSecret = KDF(gAB) in
+  (* 導出した共有鍵で暗号化 *)
+  in(c, ciphertext: bitstring);
+  let recvmsg = dec(ciphertext, sharedSecret) in
+  0.
+
+process
+  ( (!clientA()) | (!serverB()) | phase 1; out(c, password) )

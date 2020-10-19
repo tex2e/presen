@@ -1,0 +1,728 @@
+
+\documentclass[dvipdfmx, dvipsnames, 11pt]{beamer}
+% \documentclass[dvipdfmx, 12pt, aspectratio=169]{beamer} % 16:9
+\usepackage{pgfpages}
+\usepackage{bxdpx-beamer}
+
+
+%%%% PDFのしおりの文字化け対策 %%%%
+\usepackage{atbegshi}
+\ifnum 42146=\euc"A4A2
+\AtBeginShipoutFirst{\special{pdf:tounicode EUC-UCS2}}
+\else
+\AtBeginShipoutFirst{\special{pdf:tounicode 90ms-RKSJ-UCS2}}
+\fi
+%%%%
+
+%%%% スライドの見た目 %%%%
+% http://deic.uab.es/~iblanes/beamer_gallery/
+\usetheme{Singapore} % Theme
+\usecolortheme{default} % Color
+\usefonttheme{professionalfonts} % Font
+%%%%
+
+%%%% フォントの設定 %%%%
+\usepackage[utf8]{inputenc} % UTF-8
+\usepackage[T1]{fontenc} % 8bit font
+\usepackage{lmodern} % Latin Modern font
+\usepackage{otf} % otf (font)
+\usepackage{bm} % bold math
+\renewcommand{\kanjifamilydefault}{\gtdefault} % fontfamily: Gothic
+\renewcommand{\familydefault}{\sfdefault} % 英語フォント
+\usepackage{txfonts}
+%%%%
+
+% %% ----- math -----
+\usepackage{amssymb}
+% %% ----- programing -----
+% \usepackage{verbatim}
+\newcommand{\code}[1]{ \texttt{\detokenize{#1}} }
+\usepackage{listings,jlisting}
+\newcommand{\HighLight}{\makebox[0pt][l]{\color[rgb]{1, 0.88, 0.66}\rule[-2pt]{1.0\linewidth}{8pt}}}
+\newcommand{\HighLightI}{\only<1>{\HighLight}}
+\newcommand{\HighLightII}{\only<2>{\HighLight}}
+\newcommand{\HighLightIII}{\only<3>{\HighLight}}
+\newcommand{\HighLightIV}{\only<4>{\HighLight}}
+\newcommand{\HighLightV}{\only<5>{\HighLight}}
+\lstset{language=C,
+    basicstyle=\ttfamily\scriptsize,
+    keywordstyle=\bfseries,
+    showstringspaces=false,
+    morekeywords={free, query, process, in, out, fun, reduc, forall, let},
+    escapechar=\%,
+}
+% %% ----- tikz -----
+\usepackage{tikz}
+\usetikzlibrary{calc,positioning,arrows,fit}
+\usetikzlibrary{arrows.meta}
+
+\newcommand{\enc}{\mathrm{enc}}
+\newcommand{\dec}{\mathrm{dec}}
+
+\title{~\\~\\~\\~\\プロトコルの形式的安全性検証ツール\\ProVerif}
+\subtitle{}
+\author{~\\~\\~\\~\\@tex2e}
+\date{}
+
+\begin{document}
+
+% ==============================================================================
+\begin{frame}[plain]
+  \frametitle{}
+  \titlepage %表紙
+\end{frame}
+
+% ==============================================================================
+\section{プロトコルの形式的安全性検証}
+
+% --------------------------------------------------------------------
+\begin{frame}[fragile]
+  \frametitle{ProVerif概要}
+  \vspace{1em}
+
+  \begin{itemize}
+    \item できること：
+      \\~~~~ プロトコルをモデル化したコードを記述 
+      \\~~~~ $\rightarrow$ ProVerifツールで実行
+      \\~~~~ $\rightarrow$ 脆弱性あり・なしの判定
+    \vspace{1em}
+    \item わかること：
+      \\~~~~ プロトコルのセキュリティ特性
+      \\~~~~~~~~ 秘匿性、{\color{gray}真正性}、オフライン攻撃、前方秘匿性
+    \vspace{1em}
+    \item 今日のお話：
+      \\~~~~ サンプルプロトコルで検証
+      \begin{itemize}
+        \item プロトコル$\alpha$
+        \item プロトコル$\beta$
+      \end{itemize}
+  \end{itemize}
+\end{frame}
+
+% --------------------------------------------------------------------
+\begin{frame}[fragile]
+  \frametitle{ProVerif}
+  \vspace{1em}
+
+  \begin{itemize}
+    \item プロトコルが安全かどうかを自動で証明
+    \item 誰でも使えて無料\footnote{\tiny\url{http://proverif.inria.fr/}}
+    \vspace{0.5em}
+    \item spi計算の書き方に(少し)似ている
+    \item 言語としてはOCamlに(少し)似ている
+  \end{itemize}
+
+  \vspace{1em}
+
+  \begin{lstlisting}
+    free c: channel.
+    free message: bitstring [private].
+
+    query attacker(message).
+
+    process
+      out(c, message);
+      0
+  \end{lstlisting}
+\end{frame}
+
+% ==============================================================================
+\section{プロトコル\scriptsize$\alpha$}
+
+% --------------------------------------------------------------------
+\begin{frame}
+  \frametitle{プロトコル{\LARGE$\alpha$}}
+
+  \begin{center}
+    \begin{tikzpicture}[node distance=2cm,auto,>=stealth']
+      \node[draw=black] (server) {Server};
+      \node[draw=black, left of=server, node distance=5cm] (client) {Client};
+      \node[below of=server, node distance=4cm] (server_ground) {};
+      \node[below of=client, node distance=4cm] (client_ground) {};
+      %
+      \draw (client) -- (client_ground);
+      \draw (server) -- (server_ground);
+      \node at ($(client)!0.2!(client_ground)$) [fill=white] {パスワード$p$, 平文$m$};
+      \node at ($(server)!0.2!(server_ground)$) [fill=white] {パスワード$p$};
+      \draw[->] ($(client)!0.55!(client_ground)$) -- node[above,scale=1,midway]{暗号化$\enc(m, p)$} ($(server)!0.60!(server_ground)$);
+      \node at ($(server)!0.85!(server_ground)$) [fill=white] {復号};
+    \end{tikzpicture}
+  \end{center}
+
+  \begin{center}
+    このプロトコルが安全かどうかを\bf{ProVerif}で検証します
+  \end{center}
+\end{frame}
+
+% --------------------------------------------------------------------
+\begin{frame}[fragile]
+  \frametitle{プロトコルのモデル化}
+  \framesubtitle{ハッシュ関数}
+
+  特徴：
+  \begin{itemize}
+    \item 一方向関数 : $f(m) \rightarrow h$
+    \item 完全な暗号モデル\hspace{0em}\footnote{\tiny Dolve-Yaoモデル}\hspace{0em}において逆関数は存在しない
+  \end{itemize}
+
+  \begin{center}
+    \begin{tikzpicture}[color=white!30!blue]
+      \draw[-{Triangle[width=35pt,length=15pt]}, line width=20pt](0,0) -- (0,-1)
+        node [midway, right=1em] {ProVerifのコード};
+    \end{tikzpicture}
+  \end{center}
+  \vspace{-1em}
+
+  \begin{lstlisting}[basicstyle=\ttfamily\footnotesize]
+    fun hash(bitstring): bitstring.
+  \end{lstlisting}
+\end{frame}
+
+% --------------------------------------------------------------------
+\begin{frame}[fragile]
+  \frametitle{プロトコルのモデル化}
+  \framesubtitle{共通鍵暗号}
+
+  特徴：
+  \begin{itemize}
+    \item 暗号化 : $\enc(m, k)$
+    \item 復号　 : $\dec(c, k)$
+    \item 暗号化と復号で元に戻る : $\dec(\enc(m, k), k) = m$
+  \end{itemize}
+
+  \begin{center}
+    \begin{tikzpicture}[color=white!30!blue]
+      \draw[-{Triangle[width=35pt,length=15pt]}, line width=20pt](0,0) -- (0,-1)
+        node [midway, right=1em] {ProVerifのコード};
+    \end{tikzpicture}
+  \end{center}
+  \vspace{-1em}
+
+  \begin{lstlisting}
+    fun enc(bitstring, key): bitstring.
+    reduc forall m: bitstring, k: key;
+      dec(enc(m,k),k) = m.
+  \end{lstlisting}
+\end{frame}
+
+% --------------------------------------------------------------------
+\begin{frame}[fragile]
+  \frametitle{プロトコル{\LARGE$\alpha$}のモデル化}
+  \framesubtitle{クライアント--サーバ間の通信}
+
+  \begin{lstlisting}
+    (* クライアントA *)
+    let clientA() =
+      event beginA(msg);
+      out(c, enc(msg, password));
+      0.
+
+    (* サーバB *)
+    let serverB() =
+      in(c, x: bitstring);
+      let recvmsg = dec(x, password) in
+      event endB(recvmsg);
+      0.
+
+    process
+      ( (!clientA()) | (!serverB()) )
+  \end{lstlisting}
+\end{frame}
+
+% --------------------------------------------------------------------
+\begin{frame}[fragile]
+  \frametitle{検証方法}
+  \framesubtitle{秘匿性}
+
+  限られた人しか情報にアクセスできないこと
+
+  \vspace{2em}
+  \begin{itemize}
+    \item \code{query} : 検証クエリ
+    \item \code{attacker(v)} : 攻撃者は変数$v$に到達可能か
+  \end{itemize}
+
+  \vspace{2em}
+  \begin{lstlisting}
+    (* 秘匿性の検証 *)
+    query attacker(msg).
+    query attacker(password).
+  \end{lstlisting}
+\end{frame}
+
+% --------------------------------------------------------------------
+\begin{frame}[fragile]
+  \frametitle{検証結果}
+  \framesubtitle{秘匿性}
+
+  \begin{lstlisting}[basicstyle=\ttfamily\tiny, frame=single]
+$ proverif -color protocol1.pv
+(
+    {1}!
+    {2}out(c, enc(msg,password))
+) | (
+    {3}!
+    {4}in(c, x: bitstring);
+    {5}let recvmsg: bitstring = dec(x,password) in
+    0
+)
+...
+--------------------------------------------------------------
+Verification summary:
+
+Query not attacker(msg[]) is %\color{OliveGreen}true%.
+
+Query not attacker(password[]) is %\color{OliveGreen}true%.
+  \end{lstlisting}
+  
+  \begin{table}
+    \centering
+    \begin{tabular}{lll}
+      秘匿性 & $\rightarrow$ あり & \color{OliveGreen}$\checkmark$ \\
+      \color{gray}オフライン攻撃 &  &  \\
+      \color{gray}前方秘匿性 &  &
+    \end{tabular}
+  \end{table}
+\end{frame}
+
+% --------------------------------------------------------------------
+\begin{frame}[fragile]
+  \frametitle{検証方法}
+  \framesubtitle{オフライン攻撃}
+
+  盗聴した内容をオフラインで解読すること
+
+  \vspace{2em}
+  \begin{itemize}
+    \item \code{weaksecret v.}
+      \\~~~~ 秘密値$v$のエントロピーが低いとき
+      \footnote{\tiny 人間が覚えられる程度の文字列しかないとき（パスワードなど）}、
+      \\~~~~ 攻撃者は変数$v$に到達可能か
+  \end{itemize}
+
+  \vspace{2em}
+  \begin{lstlisting}
+    (* オフライン攻撃の検証 *)
+    weaksecret password.
+  \end{lstlisting}
+\end{frame}
+
+% --------------------------------------------------------------------
+\begin{frame}[fragile]
+  \frametitle{検証結果}
+  \framesubtitle{オフライン攻撃}
+
+  \begin{lstlisting}[basicstyle=\ttfamily\tiny, frame=single]
+$ proverif -color protocol1a.pv
+...
+The attacker tests whether dec(~M,@weaksecretcst) is fail knowing
+~M = enc(msg,password).
+This allows the attacker to know whether @weaksecretcst = password.
+A trace has been found.
+RESULT Weak secret password is false.
+...
+--------------------------------------------------------------
+Verification summary:
+
+%\HighLightII%Weak secret password is %\color{red}false%.%\footnote{\tiny 弱い秘密を使ったときプロトコルの安全性はない、という意味}%
+
+Query not attacker(msg[]) is %\color{OliveGreen}true%.
+
+Query not attacker(password[]) is %\color{OliveGreen}true%.
+  \end{lstlisting}
+
+  \begin{table}
+    \centering
+    \begin{tabular}{lll}
+      \color{gray}秘匿性 & \color{gray}$\rightarrow$ あり & \color{OliveGreen}$\checkmark$ \\
+      オフライン攻撃 & $\rightarrow$ 可能 & \color{red}$\times$ \\
+      \color{gray}前方秘匿性 &  &
+    \end{tabular}
+  \end{table}
+\end{frame}
+
+% --------------------------------------------------------------------
+\begin{frame}[fragile]
+  \frametitle{検証結果}
+  \framesubtitle{オフライン攻撃}
+
+  \includegraphics[width=10cm]{graph/protocol1_weaksecret.pdf}
+\end{frame}
+
+% --------------------------------------------------------------------
+\begin{frame}[fragile]
+  \frametitle{検証方法}
+  \framesubtitle{前方秘匿性}
+
+  秘密鍵が漏洩しても、過去の暗号化通信が復号できないこと
+
+  \vspace{2em}
+  \begin{itemize}
+    \item \code{phase 1; out(c, password)}
+      \vspace{0.5em}
+      \\~~~~ Phase 0 : パスワードで平文$m$を暗号化して送信
+      \\~~~~ Phase 1 : パスワードを漏洩させる
+      \\~~~~~~ パスワード漏洩後に攻撃者は平文$m$に到達可能か
+  \end{itemize}
+
+  \vspace{2em}
+  \begin{lstlisting}
+    (* 前方秘匿性の検証 *)
+    process
+      ( (!clientA()) | (!serverB()) | phase 1; out(c, password) )
+  \end{lstlisting}
+\end{frame}
+
+% --------------------------------------------------------------------
+\begin{frame}[fragile]
+  \frametitle{検証結果}
+  \framesubtitle{前方秘匿性}
+
+  \begin{lstlisting}[basicstyle=\ttfamily\tiny, frame=single]
+$ proverif -color protocol1b.pv
+...
+(
+    {1}!
+    {2}out(c, enc(msg,password))
+) | (
+    {3}!
+    {4}in(c, x: bitstring);
+    {5}let recvmsg: bitstring = dec(x,password) in
+    0
+) | (
+    {6}phase 1;
+    {7}out(c, password)
+)
+...
+--------------------------------------------------------------
+Verification summary:
+
+Query not attacker_p1(msg[]) is %\color{red}false%.
+
+Query not attacker_p1(password[]) is %\color{red}false%.
+  \end{lstlisting}
+
+  \begin{table}
+    \centering
+    \begin{tabular}{lll}
+      \color{gray}秘匿性 & \color{gray}$\rightarrow$ あり & \color{OliveGreen}$\checkmark$ \\
+      \color{gray}オフライン攻撃 & \color{gray}$\rightarrow$ 可能 & \color{red}$\times$ \\
+      前方秘匿性 & $\rightarrow$ なし & \color{red}$\times$
+    \end{tabular}
+  \end{table}
+\end{frame}
+
+% --------------------------------------------------------------------
+\begin{frame}[fragile]
+  \frametitle{検証結果}
+  \framesubtitle{前方秘匿性}
+
+  \includegraphics[width=11cm]{graph/protocol1_forwardsecrecy.pdf}
+\end{frame}
+
+% ==============================================================================
+\section{プロトコル\scriptsize$\beta$}
+
+% --------------------------------------------------------------------
+\begin{frame}
+  \frametitle{対策・改善}
+  \framesubtitle{オフライン攻撃と前方秘匿性}
+
+  \begin{itemize}
+    \item オフライン攻撃：\\~~~~ 弱い鍵から強い鍵を作る
+    \vspace{1em}
+    \item 前方秘匿性：\\~~~~ 通信毎に異なる共通鍵を使うようにする
+  \end{itemize}
+\end{frame}
+
+% --------------------------------------------------------------------
+\begin{frame}
+  \frametitle{Diffie-Hellman鍵共有 (DH)}
+  % \framesubtitle{DH鍵共有}
+
+  \begin{enumerate}
+    \item Aliceは乱数$a$を選択する
+    \item Alice$\rightarrow$Bob : $A = g^a \pmod{p}$
+    \item Bobは乱数$b$を選択する
+    \item Bob$\rightarrow$Alice : $B = g^b \pmod{p}$
+    \item AliceとBobは共通鍵$K$が求まる：\\~~~~$K = (g^a)^b = g^{ab} = (g^b)^a \pmod{p}$
+  \end{enumerate}
+  \vspace{2em}
+
+  生成元$g$と素数$p$を適切に選ぶとき、盗聴者は公開値$A,B$から共有鍵$K$を求めることは困難（離散対数問題）
+\end{frame}
+
+% --------------------------------------------------------------------
+\begin{frame}[fragile]
+  \frametitle{プロトコルのモデル化}
+  \framesubtitle{Diffie-Hellman鍵共有(DH鍵共有)}
+
+  \begin{itemize}
+    \item 一方向 :
+      \\~~~~ {\color{gray}$A = g^{a} \pmod{p}$}
+      \\~~~~ $A = \exp(g, a)$
+    \item 公開値から共通鍵が求まる :
+      \\~~~~ {\color{gray}$K = (g^a)^b = g^{ab} = (g^b)^a \pmod{p}$}
+      \\~~~~ $K = \exp(\exp(g,a),b) = \exp(\exp(g,b),a)$
+  \end{itemize}
+
+  \vspace{-1em}
+  \begin{center}
+    \begin{tikzpicture}[color=white!30!blue]
+      \draw[-{Triangle[width=35pt,length=15pt]}, line width=20pt](0,0) -- (0,-1)
+        node [midway, right=1em] {ProVerifのコード};
+    \end{tikzpicture}
+  \end{center}
+  \vspace{-2.5em}
+
+  \begin{lstlisting}[basicstyle=\ttfamily\footnotesize]
+    type G.
+    type exponent.
+    const g: G [data].  (* 生成元g *)
+    fun exp(G, exponent): G.
+    equation forall a: exponent, b: exponent;
+      exp(exp(g,a),b) = exp(exp(g,b),a).
+  \end{lstlisting}
+\end{frame}
+
+% --------------------------------------------------------------------
+\begin{frame}
+  \frametitle{プロトコル{$\beta$}}
+  \framesubtitle{DH鍵共有$+$暗号化}
+
+  \begin{center}
+    \begin{tikzpicture}[node distance=2cm,auto,>=stealth']
+      \node[draw=black] (server) {Server};
+      \node[draw=black, left of=server, node distance=5cm] (client) {Client};
+      \node[below of=server, node distance=6.5cm] (server_ground) {};
+      \node[below of=client, node distance=6.5cm] (client_ground) {};
+      %
+      \draw (client) -- (client_ground);
+      \draw (server) -- (server_ground);
+      \node at ($(client)!0.10!(client_ground)$) [fill=white] {パスワード$p$, 平文$m$};
+      \node at ($(server)!0.10!(server_ground)$) [fill=white] {パスワード$p$};
+      \node at ($(client)!0.25!(client_ground)$) [fill=white] (Cg) {生成元$g = \mathrm{genG}(p)$};
+      \node at ($(server)!0.25!(server_ground)$) [fill=white] (Sg) {生成元$g = \mathrm{genG}(p)$};
+      \draw[->] ($(client)!0.35!(client_ground)$) -- node[above,scale=1,pos=0.3]{$g^a$} ($(server)!0.45!(server_ground)$);
+      \draw[<-] ($(client)!0.45!(client_ground)$) -- node[above,scale=1,pos=0.7]{$g^b$} ($(server)!0.35!(server_ground)$);
+      \node at ($(client)!0.52!(client_ground)$) [fill=white] (Cgab) {$g^{ab}$};
+      \node at ($(server)!0.52!(server_ground)$) [fill=white] (Sgab) {$g^{ab}$};
+      \node at ($(client)!0.70!(client_ground)$) [fill=white] (Css) {共有鍵$s = \mathrm{KDF}(g^{ba})$};
+      \node at ($(server)!0.70!(server_ground)$) [fill=white] (Sss) {共有鍵$s = \mathrm{KDF}(g^{ab})$};
+      \draw[->] ($(client)!0.85!(client_ground)$) -- node[above,scale=1,midway]{暗号化$\enc(m, s)$} ($(server)!0.90!(server_ground)$);
+      \node at ($(server)!1.00!(server_ground)$) [fill=white] {復号};
+
+      \onslide<2->
+
+      % DH鍵共有と鍵導出KDFを枠で囲む
+      \node[fit=(Cg)(Sg)(Cgab)(Sgab)(Css)(Sss), rounded corners=3pt, color=orange!30!white, line width=2pt, draw] {};
+    \end{tikzpicture}
+  \end{center}
+\end{frame}
+
+% --------------------------------------------------------------------
+\begin{frame}[fragile]
+  \frametitle{プロトコル{$\beta$}のモデル化}
+  \framesubtitle{クライアント--サーバ間の通信}
+
+  \begin{lstlisting}[basicstyle=\ttfamily\scriptsize]
+let clientA() =
+  new randomA: exponent;
+  let gA = exp(genG(password), randomA) in
+  out(c, gA); 
+  in(c, gB: G);
+  let sharedSecret = KDF(exp(gB, randomA)) in
+  let ciphertext = enc(msg, sharedSecret) in
+  out(c, ciphertext);
+  0.
+
+let serverB() =
+  new randomB: exponent;
+  let gB = exp(genG(password), randomB) in
+  in(c, gA: G);
+  out(c, gB);
+  let sharedSecret = KDF(exp(gA, randomB)) in
+  in(c, ciphertext: bitstring);
+  let recvmsg = dec(ciphertext, sharedSecret) in
+  0.
+
+process
+  ( (!clientA()) | (!serverB()) )
+  \end{lstlisting}
+\end{frame}
+
+% --------------------------------------------------------------------
+\begin{frame}[fragile]
+  \frametitle{検証方法}
+  \framesubtitle{秘匿性、オフライン攻撃、前方秘匿性}
+
+  \begin{itemize}
+    \item \code{attacker(v)}
+      \\~~~~ 攻撃者は変数$v$に到達可能か
+    \vspace{0.5em}
+    \item \code{weaksecret v.}
+      \\~~~~ 秘密の値$v$のエントロピーが低いとき、
+      \\~~~~ 攻撃者は変数$v$に到達可能か
+    \vspace{0.5em}
+    \item \code{phase 1; out(c, password)}
+      \vspace{0.5em}
+      \\~~~~ Phase 0 : パスワードで平文$m$を暗号化して送信
+      \\~~~~ Phase 1 : パスワードを漏洩させる
+      \\~~~~~~ パスワード漏洩後に攻撃者は平文$m$に到達可能か
+  \end{itemize}
+\end{frame}
+
+% --------------------------------------------------------------------
+\begin{frame}[fragile]
+  \frametitle{検証結果}
+  \framesubtitle{秘匿性、オフライン攻撃}
+
+  \begin{lstlisting}[frame=single]
+$ proverif -color protocol2a.pv
+...
+--------------------------------------------------------------
+Verification summary:
+
+Query not attacker(msg[]) is %\color{OliveGreen}true%.
+
+Query not attacker(password[]) is %\color{OliveGreen}true%.
+
+Weak secret password is %\color{OliveGreen}true%.
+  \end{lstlisting}
+
+  \begin{table}
+    \centering
+    \begin{tabular}{lll}
+      秘匿性 & $\rightarrow$ あり & \color{OliveGreen}$\checkmark$ \\
+      オフライン攻撃 & $\rightarrow$ 困難 & \color{OliveGreen}$\checkmark$ \\
+      \color{gray}前方秘匿性 &  &
+    \end{tabular}
+  \end{table}
+\end{frame}
+
+% --------------------------------------------------------------------
+\begin{frame}[fragile]
+  \frametitle{検証結果}
+  \framesubtitle{前方秘匿性}
+
+  \begin{lstlisting}[frame=single]
+$ proverif -color protocol2b.pv
+...
+--------------------------------------------------------------
+Verification summary:
+
+Query not attacker_p1(msg[]) is %\color{OliveGreen}true%.
+
+Query not attacker_p1(password[]) is %\color{red}false%.
+
+...
+  \end{lstlisting}
+
+  \begin{table}
+    \centering
+    \begin{tabular}{lll}
+      \color{gray}秘匿性 & \color{gray}$\rightarrow$ あり & \color{OliveGreen}$\checkmark$ \\
+      \color{gray}オフライン攻撃 & \color{gray}$\rightarrow$ 困難 & \color{OliveGreen}$\checkmark$ \\
+      前方秘匿性 & $\rightarrow$ あり & \color{OliveGreen}$\checkmark$
+    \end{tabular}
+  \end{table}
+\end{frame}
+
+% --------------------------------------------------------------------
+\begin{frame}
+  \frametitle{プロトコル$\beta$}
+  \framesubtitle{Wi-Fiの新規格WPA3を参考に作成}
+
+  \begin{center}
+    \begin{tikzpicture}[node distance=2cm,auto,>=stealth']
+      \node[draw=black] (server) {Server};
+      \node[draw=black, left of=server, node distance=5cm] (client) {Client};
+      \node[below of=server, node distance=6.5cm] (server_ground) {};
+      \node[below of=client, node distance=6.5cm] (client_ground) {};
+      %
+      \draw (client) -- (client_ground);
+      \draw (server) -- (server_ground);
+      \node at ($(client)!0.10!(client_ground)$) [fill=white] {パスワード$p$, 平文$m$};
+      \node at ($(server)!0.10!(server_ground)$) [fill=white] {パスワード$p$};
+      \node at ($(client)!0.25!(client_ground)$) [fill=white] (Cg) {生成元$g = \mathrm{genG}(p)$};
+      \node at ($(server)!0.25!(server_ground)$) [fill=white] (Sg) {生成元$g = \mathrm{genG}(p)$};
+      \draw[->] ($(client)!0.35!(client_ground)$) -- node[above,scale=1,pos=0.3]{$g^a$} ($(server)!0.45!(server_ground)$);
+      \draw[<-] ($(client)!0.45!(client_ground)$) -- node[above,scale=1,pos=0.7]{$g^b$} ($(server)!0.35!(server_ground)$);
+      \node at ($(client)!0.52!(client_ground)$) [fill=white] (Cgab) {$g^{ab}$};
+      \node at ($(server)!0.52!(server_ground)$) [fill=white] (Sgab) {$g^{ab}$};
+      \node at ($(client)!0.70!(client_ground)$) [fill=white] (Css) {共有鍵$s = \mathrm{KDF}(g^{ba})$};
+      \node at ($(server)!0.70!(server_ground)$) [fill=white] (Sss) {共有鍵$s = \mathrm{KDF}(g^{ab})$};
+      \draw[->] ($(client)!0.85!(client_ground)$) -- node[above,scale=1,midway]{暗号化$\enc(m, s)$} ($(server)!0.90!(server_ground)$);
+      \node at ($(server)!1.00!(server_ground)$) [fill=white] {復号};
+    \end{tikzpicture}
+  \end{center}
+\end{frame}
+
+% ==============================================================================
+\section{おわりに}
+
+% --------------------------------------------------------------------
+\begin{frame}[fragile]
+  \frametitle{おわりに}
+
+  \begin{itemize}
+    \item ProVerifは秘匿性や真正性を自動で検証可能
+    \vspace{1em}
+    \item いろんなプロトコルを検証してみると楽しい
+  \end{itemize}
+
+  \vspace{2em}
+  \begin{center}
+    Happy ProVerifying!
+  \end{center}
+\end{frame}
+
+
+% ==============================================================================
+% \appendix
+\begin{frame}[allowframebreaks]
+  \frametitle{参考文献}
+
+  \begin{thebibliography}{9}
+    \bibitem{proverif} Blanchet at el.: ProVerif 2.02pl1: Automatic Cryptographic Protocol Verifier, User Manual and Tutorial. INRIA, September 2020.
+    \bibitem{proverif} Blanchet: ProVerif Automatic Cryptographic Protocol Verifier User Manual for Untyped Inputs. INRIA, September 2020.
+  \end{thebibliography}
+
+\end{frame}
+
+
+
+% ==============================================================================
+
+% % columns
+% \begin{columns}
+%   \begin{column}{.4\textwidth}
+%     ...
+%   \end{column}
+%   \begin{column}{.6\textwidth}
+%     ...
+%   \end{column}
+% \end{columns}
+%
+% % block, alertblock, exampleblock
+% \begin{block}{見出し}
+%   ...
+% \end{block}
+%
+% % Overlay Specification
+% \pause
+% \begin{enumerate}
+%   \item<1-> 1コマ目以降表示
+%   \item<1-2> 1-2コマ目のみ表示
+%   \item<2-3> 2-3コマ目のみ表示
+% \end{enumerate}
+% \uncover<1,3>{1コマ目と3コマ目のみ表示、スペースを占有する。}
+% \only<2>{2コマ目のみ表示、スペースを占有しない。}
+% \only<2|handout:0>{2コマ目のみ表示、handoutモードで非表示。}
+%
+% % Text animations (revealing one item per click)
+% \begin{itemize}[<+->]
+%   \item ...
+% \end{itemize}
+
+\end{document}
